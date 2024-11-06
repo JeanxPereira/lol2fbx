@@ -36,6 +36,10 @@ jobs:
       - name: Install dependencies
         run: dotnet restore
 
+      - name: Install AssimpNet Package
+        run: dotnet add ${{ env.LOL2FBX_PROJECT }} package AssimpNet
+
+
       - name: Build lol2fbx
         run: dotnet build ${{ env.LOL2FBX_PROJECT }} --configuration ${{ env.BUILD_CONFIG }} --no-restore
       
