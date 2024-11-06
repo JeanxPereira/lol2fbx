@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "skn2fbx": {
+      "commandName": "Project",
+      "commandLineArgs": "skn2fbx -m gwen_base.skn -s gwen_base.skl -f gwen_base.fbx --materials Body --textures Gwen_Base_Main_TX_CM.dds --anm animations"
+    },
+    "mapgeo2fbx": {
+      "commandName": "Project",
+      "commandLineArgs": "mapgeo2fbx -m X:/lol/game/data/maps/mapgeometry/map11/base_srx.mapgeo -b X:/lol/game/data/maps/mapgeometry/map11/base_srx.materials.bin -f base_srx.fbx"
+    },
+    "fbx2skn": {
+      "commandName": "Project",
+      "commandLineArgs": "fbx2skn -f akali.fbx -m akali.skn -s akali.skl"
+    }
+  }
+}

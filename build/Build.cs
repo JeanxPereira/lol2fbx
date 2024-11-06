@@ -73,8 +73,8 @@ class Build : NukeBuild
 
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
 
-    AbsolutePath Lol2GltfPublishDirectory => ArtifactsDirectory / "lol2gltf";
-    AbsolutePath Lol2GltfCliPublishDirectory => ArtifactsDirectory / "lol2gltf.CLI";
+    AbsolutePath Lol2FbxPublishDirectory => ArtifactsDirectory / "lol2fbx";
+    AbsolutePath Lol2FbxCliPublishDirectory => ArtifactsDirectory / "lol2fbx.CLI";
 
     Target Clean =>
         _ =>
@@ -104,7 +104,7 @@ class Build : NukeBuild
                 {
                     DotNetBuild(
                         s =>
-                            s.SetProjectFile(Solution.GetProject("lol2gltf"))
+                            s.SetProjectFile(Solution.GetProject("lol2fbx"))
                                 .SetConfiguration(Configuration)
                                 .SetVersion(MinVer.Version)
                                 .SetAssemblyVersion(MinVer.AssemblyVersion)
@@ -114,7 +114,7 @@ class Build : NukeBuild
 
                     DotNetBuild(
                         s =>
-                            s.SetProjectFile(Solution.GetProject("lol2gltf.CLI"))
+                            s.SetProjectFile(Solution.GetProject("lol2fbx.CLI"))
                                 .SetConfiguration(Configuration)
                                 .SetVersion(MinVer.Version)
                                 .SetAssemblyVersion(MinVer.AssemblyVersion)
@@ -131,8 +131,8 @@ class Build : NukeBuild
                 {
                     DotNetPublish(
                         s =>
-                            s.SetProject(Solution.GetProject("lol2gltf"))
-                                .SetOutput(Lol2GltfPublishDirectory)
+                            s.SetProject(Solution.GetProject("lol2fbx"))
+                                .SetOutput(Lol2FbxPublishDirectory)
                                 .SetConfiguration(Configuration)
                                 .EnableSelfContained()
                                 .EnablePublishSingleFile()
@@ -144,8 +144,8 @@ class Build : NukeBuild
 
                     DotNetPublish(
                         s =>
-                            s.SetProject(Solution.GetProject("lol2gltf.CLI"))
-                                .SetOutput(Lol2GltfCliPublishDirectory)
+                            s.SetProject(Solution.GetProject("lol2fbx.CLI"))
+                                .SetOutput(Lol2FbxCliPublishDirectory)
                                 .SetConfiguration(Configuration)
                                 .EnablePublishSingleFile()
                                 .EnableSelfContained()
@@ -192,14 +192,14 @@ class Build : NukeBuild
                         }
                     );
 
-                    string lol2gltfZip = ArtifactsDirectory / $"lol2gltf_{MinVer.Version}.zip";
-                    string lol2gltfCliZip = ArtifactsDirectory / $"lol2gltf.CLI_{MinVer.Version}.zip";
+                    string lol2fbxZip = ArtifactsDirectory / $"lol2fbx_{MinVer.Version}.zip";
+                    string lol2fbxCliZip = ArtifactsDirectory / $"lol2fbx.CLI_{MinVer.Version}.zip";
 
-                    CompressZip(Lol2GltfPublishDirectory, lol2gltfZip);
-                    CompressZip(Lol2GltfCliPublishDirectory, lol2gltfCliZip);
+                    CompressZip(Lol2FbxPublishDirectory, lol2fbxZip);
+                    CompressZip(Lol2FbxCliPublishDirectory, lol2fbxCliZip);
 
-                    await UploadReleaseAssetToGithub(createdRelease, lol2gltfZip);
-                    await UploadReleaseAssetToGithub(createdRelease, lol2gltfCliZip);
+                    await UploadReleaseAssetToGithub(createdRelease, lol2fbxZip);
+                    await UploadReleaseAssetToGithub(createdRelease, lol2fbxCliZip);
                 });
 
     private static async Task UploadReleaseAssetToGithub(Release release, string asset)

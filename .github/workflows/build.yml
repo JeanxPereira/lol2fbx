@@ -12,8 +12,8 @@ jobs:
   build:
     env:
       BUILD_CONFIG: "Release"
-      LOL2GLTF_PROJECT: "lol2gltf"
-      LOL2GLTF_CLI_PROJECT: "lol2gltf.CLI"
+      LOL2FBX_PROJECT: "lol2fbx"
+      LOL2FBX_CLI_PROJECT: "lol2fbx.CLI"
 
     runs-on: windows-latest
 
@@ -36,9 +36,9 @@ jobs:
       - name: Install dependencies
         run: dotnet restore
 
-      - name: Build lol2gltf
-        run: dotnet build ${{ env.LOL2GLTF_PROJECT }} --configuration ${{ env.BUILD_CONFIG }} --no-restore
+      - name: Build lol2fbx
+        run: dotnet build ${{ env.LOL2FBX_PROJECT }} --configuration ${{ env.BUILD_CONFIG }} --no-restore
       
-      - name: Build lol2gltf.CLI
-        run: dotnet build ${{ env.LOL2GLTF_CLI_PROJECT }} --configuration ${{ env.BUILD_CONFIG }} --no-restore
+      - name: Build lol2fbx.CLI
+        run: dotnet build ${{ env.LOL2FBX_CLI_PROJECT }} --configuration ${{ env.BUILD_CONFIG }} --no-restore
 

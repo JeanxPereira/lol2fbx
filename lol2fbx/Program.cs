@@ -3,7 +3,7 @@ using MudBlazor;
 using MudBlazor.Services;
 using Photino.Blazor;
 
-namespace lol2gltf;
+namespace lol2fbx;
 
 public class Program
 {
@@ -30,7 +30,7 @@ public class Program
 
         PhotinoBlazorApp app = builder.Build();
         // customize window
-        app.MainWindow.SetIconFile("favicon.ico").SetTitle("lol2gltf").Center();
+        app.MainWindow.SetIconFile("favicon.ico").SetTitle("lol2fbx").Center();
 
 #if DEBUG
         app.MainWindow.SetDevToolsEnabled(true);

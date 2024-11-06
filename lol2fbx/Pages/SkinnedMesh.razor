@@ -4,15 +4,15 @@
 @using LeagueToolkit.Core.Animation;
 @using LeagueToolkit.Core.Environment;
 @using LeagueToolkit.Core.Meta;
-@using LeagueToolkit.IO.MapGeometryFile
+@using LeagueToolkit.IO.MapGeometryFile;
 @using LeagueToolkit.IO.SimpleSkinFile;
 @using LeagueToolkit.Meta;
 @using LeagueToolkit.Toolkit;
 @using Microsoft.WindowsAPICodePack.Dialogs;
 @using PhotinoNET;
-@using SharpGLTF.Schema2;
+@using Assimp;
 @using System.Reflection;
-@using FluentValidation
+@using FluentValidation;
 @using SixLabors.ImageSharp.ColorSpaces;
 @using MudSeverity = MudBlazor.Severity;
 @using LeagueSkinnedMesh = LeagueToolkit.Core.Mesh.SkinnedMesh;
@@ -23,18 +23,17 @@
 @using Color = MudBlazor.Color;
 @using Size = MudBlazor.Size;
 @using Severity = MudBlazor.Severity;
-@using lol2gltf.Utils;
+@using lol2fbx.Utils;
 
 @page "/skinnedmesh"
 
 <MudStack Spacing="2">
     <MudAlert Severity="Severity.Warning">
-        Important: The <MudLink Href="https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#joint-hierarchy" Target="_blank">glTF specification prohibits</MudLink> the usage of the mesh's transform if the mesh is bound to a skin.
-        This means that lol2gltf exports the assets as-is without flipping the X axis (League world is left-handed), so if you want to have the correct handedness in i.e. Blender, you will have to flip the root node/scene across the X axis (Blender is right-handed).
+        Important: lol2fbx exports the assets as-is without flipping the X axis (League world is left-handed). If you want to have the correct handedness in Blender, you will need to flip the root node/scene across the X axis (Blender is right-handed).
     </MudAlert>
     <MudPaper Elevation="0" Class="pa-6">
         <MudStack Spacing="4">
-            <MudText Typo="Typo.h4">Skinned Mesh to glTF</MudText>
+            <MudText Typo="Typo.h4">Skinned Mesh to FBX</MudText>
             <MudDivider />
             <MudForm Model="@model" @ref="@form" Validation="@(validator.ValidateValue)">
                 <MudGrid Spacing="2">
@@ -152,7 +151,7 @@
                 </MudForm>
                 <MudDivider />
                 <MudStack Class="ml-auto">
-                    <MudTooltip Text="Export to glTF">
+                    <MudTooltip Text="Export to FBX">
                         <MudButton Disabled="@_isConverting" Variant="Variant.Filled" Color="Color.Primary" OnClick="@Submit">
                             @if (_isConverting)
                         {
@@ -160,7 +159,7 @@
                         }
                         else
                         {
-                            <MudText>GLTF</MudText>
+                            <MudText>FBX</MudText>
                         }
                     </MudButton>
                 </MudTooltip>
@@ -175,11 +174,11 @@
     private bool _isConverting;
 
     MudForm form;
-    SkinnedMeshToGltfModel model = new();
+    SkinnedMeshToFbxModel model = new();
 
-    SkinnedMeshToGltfModelValidator validator = new();
+    SkinnedMeshToFbxModelValidator validator = new();
 
-    public class SkinnedMeshToGltfModel
+    public class SkinnedMeshToFbxModel
     {
         public IBrowserFile SimpleSkinFile { get; set; }
         public IBrowserFile SkeletonFile { get; set; }
@@ -202,17 +201,17 @@
         public IAnimationAsset Asset { get; set; }
     }
 
-    public class SkinnedMeshToGltfModelValidator : AbstractValidator<SkinnedMeshToGltfModel>
+    public class SkinnedMeshToFbxModelValidator : AbstractValidator<SkinnedMeshToFbxModel>
     {
         public Func<object, string, Task<IEnumerable<string>>> ValidateValue =>
             async (model, propertyName) =>
-                await ValidateAsync(ValidationContext<SkinnedMeshToGltfModel>.CreateWithOptions((SkinnedMeshToGltfModel)model, x => x.IncludeProperties(propertyName))) switch
+                await ValidateAsync(ValidationContext<SkinnedMeshToFbxModel>.CreateWithOptions((SkinnedMeshToFbxModel)model, x => x.IncludeProperties(propertyName))) switch
                 {
                     { IsValid: true } => Array.Empty<string>(),
                     ValidationResult result => result.Errors.Select(e => e.ErrorMessage)
                 };
 
-        public SkinnedMeshToGltfModelValidator()
+        public SkinnedMeshToFbxModelValidator()
         {
             RuleFor(x => x.SimpleSkinFile)
                 .NotEmpty()
@@ -284,25 +283,23 @@
 
     public async Task Submit()
     {
-        // Validate form
         await this.form.Validate();
         if (this.form.IsValid is false)
             return;
 
-        CommonSaveFileDialog dialog = new("Save glTF");
-        foreach (CommonFileDialogFilter filter in FileDialogUtils.CreateGltfFilters())
+        CommonSaveFileDialog dialog = new("Save FBX");
+        foreach (CommonFileDialogFilter filter in FileDialogUtils.CreateFbxFilters())
             dialog.Filters.Add(filter);
 
         if (dialog.ShowDialog(this.Window.WindowHandle) is CommonFileDialogResult.Cancel)
             return;
 
-        // Convert
         this._isConverting = true;
         StateHasChanged();
         try
         {
-            await ConvertToGltf(dialog.FileName);
-            this.Snackbar.Add("Converted to glTF!", MudSeverity.Success);
+            await ConvertToFbx(dialog.FileName);
+            this.Snackbar.Add("Converted to FBX!", MudSeverity.Success);
         }
         catch (Exception exception)
         {
@@ -313,37 +310,34 @@
             this._isConverting = false;
             StateHasChanged();
         }
-
     }
 
-    private async Task ConvertToGltf(string gltfPath)
+    private async Task ConvertToFbx(string fbxPath)
     {
-        // TODO: Change this to use native dialog
         using MemoryStream simpleSkinStream = new();
         await this.model.SimpleSkinFile.OpenReadStream(long.MaxValue).CopyToAsync(simpleSkinStream);
         simpleSkinStream.Position = 0;
 
-        // Load assets
         using LeagueSkinnedMesh skinnedMesh = LeagueSkinnedMesh.ReadFromSimpleSkin(simpleSkinStream);
         RigResource skeleton = await LoadSkeleton();
 
-        // Load textures
         IEnumerable<(string, Stream)> textures = await LoadTextures();
 
-        ModelRoot gltf = skeleton switch
+        Scene scene = skeleton switch
         {
-            null => skinnedMesh.ToGltf(textures),
-            _ => skinnedMesh.ToGltf(skeleton, textures, this.model.Animations.Select(x => (x.Name, x.Asset)))
+            null => skinnedMesh.ToFbx(textures),
+            _ => skinnedMesh.ToFbx(skeleton, textures, this.model.Animations.Select(x => (x.Name, x.Asset)))
         };
 
-        gltf.Save(gltfPath);
+        AssimpContext exporter = new();
+        exporter.ExportFile(scene, fbxPath, "fbx");
     }
+
     private async Task<RigResource> LoadSkeleton()
     {
         if (this.model.SkeletonFile is null)
             return null;
 
-        // TODO: Change this to use native dialog
         using MemoryStream skeletonStream = new();
         await this.model.SkeletonFile.OpenReadStream(long.MaxValue).CopyToAsync(skeletonStream);
         skeletonStream.Position = 0;
@@ -351,24 +345,20 @@
         return new(skeletonStream);
     }
 
-    // this is the most digusting shit I've ever seen
     private async Task<IEnumerable<(string, Stream)>> LoadTextures()
     {
         IEnumerable<Task<(string, MemoryStream)>> asyncTextures = this.model.Materials
            .Where(x => x.TextureFile is not null)
            .Select(async x =>
            {
-               // TODO: Change this to use native dialog
                using MemoryStream textureStream = new();
                await x.TextureFile.OpenReadStream(long.MaxValue).CopyToAsync(textureStream);
                textureStream.Position = 0;
 
-               // Load texture
                LeagueTexture texture = LeagueTexture.Load(textureStream);
                ReadOnlyMemory2D<ColorRgba32> mip = texture.Mips[0];
                using SharpImage image = mip.ToImage();
 
-               // Convert to png
                MemoryStream imageStream = new();
                await image.SaveAsPngAsync(imageStream);
                imageStream.Position = 0;

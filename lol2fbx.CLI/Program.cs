@@ -9,7 +9,7 @@ using LeagueToolkit.IO.MapGeometryFile;
 using LeagueToolkit.IO.SimpleSkinFile;
 using LeagueToolkit.Meta;
 using LeagueToolkit.Toolkit;
-using SharpGLTF.Schema2;
+using Assimp;
 using SixLabors.ImageSharp;
 using System;
 using System.Collections.Generic;
@@ -19,18 +19,18 @@ using System.Reflection;
 using ImageSharpImage = SixLabors.ImageSharp.Image;
 using LeagueTexture = LeagueToolkit.Core.Renderer.Texture;
 
-namespace lol2gltf.CLI;
+namespace lol2fbx.CLI;
 
 class Program
 {
     static void Main(string[] args)
     {
         CommandLine.Parser.Default
-            .ParseArguments<SkinnedMeshToGltfOptions, MapGeometryToGltfOptions, GltfToSkinnedMeshOptions>(args)
+            .ParseArguments<SkinnedMeshToFbxOptions, MapGeometryToFbxOptions, FbxToSkinnedMeshOptions>(args)
             .MapResult(
-                (SkinnedMeshToGltfOptions opts) => ConvertSkinnedMeshToGltf(opts),
-                (MapGeometryToGltfOptions opts) => ConvertMapGeometryToGltf(opts),
-                (GltfToSkinnedMeshOptions opts) => ConvertGltfToSkinnedMesh(opts),
+                (SkinnedMeshToFbxOptions opts) => ConvertSkinnedMeshToFbx(opts),
+                (MapGeometryToFbxOptions opts) => ConvertMapGeometryToFbx(opts),
+                (FbxToSkinnedMeshOptions opts) => ConvertFbxToSkinnedMesh(opts),
                 HandleErrors
             );
     }
@@ -40,12 +40,11 @@ class Program
         return -1;
     }
 
-    private static int ConvertSkinnedMeshToGltf(SkinnedMeshToGltfOptions options)
+    private static int ConvertSkinnedMeshToFbx(SkinnedMeshToFbxOptions options)
     {
         if (options.MaterialNames.Count() != options.TexturePaths.Count())
             throw new InvalidOperationException("Material name count and Animation path count must be equal");
 
-        // Convert textures to png
         IEnumerable<(string, Stream)> textures = options.MaterialNames
             .Zip(options.TexturePaths)
             .Select(x =>
@@ -72,12 +71,15 @@ class Program
         SkinnedMesh simpleSkin = SkinnedMesh.ReadFromSimpleSkin(options.SimpleSkinPath);
         RigResource skeleton = new(skeletonStream);
 
-        simpleSkin.ToGltf(skeleton, textures, animations).Save(options.GltfPath);
+        // Convert to FBX using Assimp
+        Scene scene = simpleSkin.ToFbxScene(skeleton, textures, animations);
+        AssimpContext exporter = new();
+        exporter.ExportFile(scene, options.FbxPath, "fbx");
 
         return 1;
     }
 
-    private static int ConvertGltfToSkinnedMesh(GltfToSkinnedMeshOptions options)
+    private static int ConvertFbxToSkinnedMesh(FbxToSkinnedMeshOptions options)
     {
         string skeletonPath = string.IsNullOrEmpty(options.SkeletonPath) switch
         {
@@ -85,9 +87,10 @@ class Program
             false => options.SkeletonPath
         };
 
-        ModelRoot gltf = ModelRoot.Load(options.GltfPath);
+        AssimpContext importer = new();
+        Scene scene = importer.ImportFile(options.FbxPath, PostProcessSteps.None);
 
-        var (simpleSkin, rig) = gltf.ToRiggedMesh();
+        var (simpleSkin, rig) = scene.ToRiggedMesh();
 
         using FileStream simpleSkinStream = File.Create(options.SimpleSkinPath);
         simpleSkin.WriteSimpleSkin(simpleSkinStream);
@@ -98,9 +101,9 @@ class Program
         return 1;
     }
 
-    private static int ConvertMapGeometryToGltf(MapGeometryToGltfOptions options)
+    private static int ConvertMapGeometryToFbx(MapGeometryToFbxOptions options)
     {
-        MapGeometryGltfConversionContext conversionContext =
+        MapGeometryFbxConversionContext conversionContext =
             new(
                 MetaEnvironment.Create(
                     Assembly.Load("LeagueToolkit.Meta.Classes").GetExportedTypes().Where(x => x.IsClass)
@@ -120,7 +123,10 @@ class Program
         using EnvironmentAsset mapGeometry = new(environmentAssetStream);
         BinTree materialsBin = new(materialsBinStream);
 
-        mapGeometry.ToGltf(materialsBin, conversionContext).Save(options.GltfPath);
+        // Convert to FBX using Assimp
+        Scene scene = mapGeometry.ToFbxScene(materialsBin, conversionContext);
+        AssimpContext exporter = new();
+        exporter.ExportFile(scene, options.FbxPath, "fbx");
 
         return 1;
     }

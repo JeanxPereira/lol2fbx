@@ -1,21 +1,21 @@
 ﻿@using FluentValidation.Results;
 @using LeagueToolkit.Core.Environment;
 @using LeagueToolkit.Core.Meta;
-@using LeagueToolkit.IO.MapGeometryFile
+@using LeagueToolkit.IO.MapGeometryFile;
 @using LeagueToolkit.Meta;
 @using Microsoft.WindowsAPICodePack.Dialogs;
 @using PhotinoNET;
-@using SharpGLTF.Schema2;
+@using Assimp;
 @using System.Reflection;
-@using FluentValidation
+@using FluentValidation;
 @using MudSeverity = MudBlazor.Severity;
-@using lol2gltf.Utils;
+@using lol2fbx.Utils;
 
 @page "/environmentasset"
 
 <MudPaper Elevation="0" Class="pa-6">
     <MudStack Spacing="4">
-        <MudText Typo="Typo.h4">Convert Map Geometry to glTF</MudText>
+        <MudText Typo="Typo.h4">Convert Map Geometry to FBX</MudText>
         <MudDivider />
         <MudForm Model="@model" @ref="@form" Validation="@(validator.ValidateValue)">
             <MudGrid Spacing="2">
@@ -62,7 +62,7 @@
                 <MudItem xs="12" Class="mt-8">
                     <MudStack Spacing="2">
                         <MudAlert Severity="MudSeverity.Info">
-                            Select the folder into which you extracted the Wad package of the Map that you are converting and also and additional dependency Wad packages
+                            Select the folder into which you extracted the Wad package of the Map that you are converting and also any additional dependency Wad packages
                         </MudAlert>
                         <MudAlert Severity="MudSeverity.Warning">
                             You must provide a path to the extracted data if you want to convert textures
@@ -86,22 +86,22 @@
                 <MudItem xs="12">
                     <MudGrid Spacing="2">
                         <MudItem>
-                            <MudSelect T="MapGeometryGltfLayerGroupingPolicy"
+                            <MudSelect T="MapGeometryFbxLayerGroupingPolicy"
                                        Class="flex-grow-0" Color="Color.Primary"
                                        Label="Mesh grouping policy" AnchorOrigin="Origin.BottomCenter"
                                        @bind-Value="model.GroupingPolicy">
-                                <MudSelectItem Value="MapGeometryGltfLayerGroupingPolicy.Default" />
-                                <MudSelectItem Value="MapGeometryGltfLayerGroupingPolicy.Ignore" />
+                                <MudSelectItem Value="MapGeometryFbxLayerGroupingPolicy.Default" />
+                                <MudSelectItem Value="MapGeometryFbxLayerGroupingPolicy.Ignore" />
                             </MudSelect>
                         </MudItem>
                         <MudItem>
-                             <MudSelect T="MapGeometryGltfTextureQuality"
+                             <MudSelect T="MapGeometryFbxTextureQuality"
                                         Class="flex-grow-0" Color="Color.Primary"
                                         Label="Texture quality" AnchorOrigin="Origin.BottomCenter"
                                         @bind-Value="model.TextureQuality">
-                                        <MudSelectItem Value="MapGeometryGltfTextureQuality.High" />
-                                        <MudSelectItem Value="MapGeometryGltfTextureQuality.Medium" />
-                                        <MudSelectItem Value="MapGeometryGltfTextureQuality.Low" />
+                                        <MudSelectItem Value="MapGeometryFbxTextureQuality.High" />
+                                        <MudSelectItem Value="MapGeometryFbxTextureQuality.Medium" />
+                                        <MudSelectItem Value="MapGeometryFbxTextureQuality.Low" />
                              </MudSelect>
                         </MudItem>
                         <MudItem>
@@ -114,7 +114,7 @@
         </MudForm>
         <MudDivider/>
         <MudStack Class="ml-auto">
-            <MudTooltip Text="Export to glTF">
+            <MudTooltip Text="Export to FBX">
                 <MudButton Disabled="@_isConverting" Variant="Variant.Filled" Color="Color.Primary" OnClick="@Submit">
                     @if (_isConverting)
                     {
@@ -122,7 +122,7 @@
                     }
                     else
                     {
-                        <MudText>GLTF</MudText>
+                        <MudText>FBX</MudText>
                     }
                 </MudButton>
             </MudTooltip>
@@ -137,32 +137,32 @@
     private bool _isConverting;
 
     MudForm form;
-    MapGeometryToGltfModel model = new();
+    MapGeometryToFbxModel model = new();
 
-    MapGeometryToGltfModelValidator validator = new();
+    MapGeometryToFbxModelValidator validator = new();
 
-    public class MapGeometryToGltfModel
+    public class MapGeometryToFbxModel
     {
         public IBrowserFile MapGeometryFile { get; set; }
         public IBrowserFile MaterialsBinFile { get; set; }
         public string GameDataFolder { get; set; }
 
         public bool FlipAcrossX { get; set; } = true;
-        public MapGeometryGltfLayerGroupingPolicy GroupingPolicy { get; set; } = MapGeometryGltfLayerGroupingPolicy.Default;
-        public MapGeometryGltfTextureQuality TextureQuality { get; set; } = MapGeometryGltfTextureQuality.High;
+        public MapGeometryFbxLayerGroupingPolicy GroupingPolicy { get; set; } = MapGeometryFbxLayerGroupingPolicy.Default;
+        public MapGeometryFbxTextureQuality TextureQuality { get; set; } = MapGeometryFbxTextureQuality.High;
     }
 
-    public class MapGeometryToGltfModelValidator : AbstractValidator<MapGeometryToGltfModel>
+    public class MapGeometryToFbxModelValidator : AbstractValidator<MapGeometryToFbxModel>
     {
         public Func<object, string, Task<IEnumerable<string>>> ValidateValue => 
             async (model, propertyName) => 
-                await ValidateAsync(ValidationContext<MapGeometryToGltfModel>.CreateWithOptions((MapGeometryToGltfModel)model, x => x.IncludeProperties(propertyName))) switch 
+                await ValidateAsync(ValidationContext<MapGeometryToFbxModel>.CreateWithOptions((MapGeometryToFbxModel)model, x => x.IncludeProperties(propertyName))) switch 
                 { 
                     { IsValid: true } => Array.Empty<string>(),
                     ValidationResult result => result.Errors.Select(e => e.ErrorMessage)
                 };
 
-        public MapGeometryToGltfModelValidator()
+        public MapGeometryToFbxModelValidator()
         {
             RuleFor(x => x.MapGeometryFile).NotEmpty();
         }
@@ -182,25 +182,23 @@
 
     public async Task Submit()
     {
-        // Validate form
         await this.form.Validate();
         if (this.form.IsValid is false)
             return;
 
-        CommonSaveFileDialog dialog = new("Save glTF");
-        foreach (CommonFileDialogFilter filter in FileDialogUtils.CreateGltfFilters())
+        CommonSaveFileDialog dialog = new("Save FBX");
+        foreach (CommonFileDialogFilter filter in FileDialogUtils.CreateFbxFilters())
             dialog.Filters.Add(filter);
 
         if (dialog.ShowDialog(this.Window.WindowHandle) is CommonFileDialogResult.Cancel)
             return;
 
-        // Convert
         this._isConverting = true;
         StateHasChanged();
         try
         {
-            await ConvertToGltf(dialog.FileName);
-            this.Snackbar.Add("Converted to glTF!", MudSeverity.Success);
+            await ConvertToFbx(dialog.FileName);
+            this.Snackbar.Add("Converted to FBX!", MudSeverity.Success);
         }
         catch(Exception exception)
         {
@@ -213,17 +211,15 @@
         }
     }
 
-    private async Task ConvertToGltf(string gltfPath)
+    private async Task ConvertToFbx(string fbxPath)
     {
-        // TODO: Change this to use native dialog
-        // Read the map geometry file into memory because async read is not supported
         using MemoryStream mapGeometryStream = new();
         await this.model.MapGeometryFile.OpenReadStream(long.MaxValue).CopyToAsync(mapGeometryStream);
         mapGeometryStream.Position = 0;
 
         using EnvironmentAsset environmentAsset = new(mapGeometryStream);
 
-        environmentAsset.ToGltf(await LoadMaterialsBin(),
+        Scene scene = environmentAsset.ToFbx(await LoadMaterialsBin(),
            new() 
            {
                MetaEnvironment = MetaEnvironment.Create(Assembly.Load("LeagueToolkit.Meta.Classes").GetExportedTypes().Where(x => x.IsClass)),
@@ -235,7 +231,10 @@
                    TextureQuality = this.model.TextureQuality
                }
            }
-        ).Save(gltfPath);
+        );
+
+        AssimpContext exporter = new();
+        exporter.ExportFile(scene, fbxPath, "fbx");
     }
 
     private async Task<BinTree> LoadMaterialsBin()
