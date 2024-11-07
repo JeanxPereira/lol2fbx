@@ -219,7 +219,7 @@
 
         using EnvironmentAsset environmentAsset = new(mapGeometryStream);
 
-        Scene scene = environmentAsset.ToFbx(await LoadMaterialsBin(),
+        Scene scene = environmentAsset.ToFbxScene(await LoadMaterialsBin(),
            new() 
            {
                MetaEnvironment = MetaEnvironment.Create(Assembly.Load("LeagueToolkit.Meta.Classes").GetExportedTypes().Where(x => x.IsClass)),
